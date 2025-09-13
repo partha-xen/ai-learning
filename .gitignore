@@ -1,0 +1,11 @@
+# venv (project-local)
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store

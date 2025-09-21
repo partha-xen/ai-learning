@@ -19,7 +19,8 @@ MENU_OPTIONS = {
     "1f": "Load, generate and store embeddings (force overwrite)",
     "2": "Read embeddings from store and print stats",
     "3": "Query the database",
-    "4": "Exit",
+    "4": "Get RAG answer (AI-generated response)",
+    "5": "Exit",
 }
 
 client = OpenAI(
@@ -117,13 +118,60 @@ def query_collection(
     return results
 
 
+# 7. RAG Answer Generation
+def rag_answer(collection, query: str, model=EMBEDDING_MODEL, top_k=2):
+    """
+    Generate an answer using RAG (Retrieval-Augmented Generation)
+
+    Args:
+        collection: ChromaDB collection to query
+        query: User's question
+        model: Embedding model to use
+        top_k: Number of relevant documents to retrieve
+
+    Returns:
+        Generated answer string
+    """
+    # 1. Retrieve relevant documents using existing query_collection method
+    results = query_collection(collection, query, model=model, top_k=top_k)
+    retrieved_docs = results["documents"][0]  # list of top docs (strings)
+
+    # 2. Construct prompt with retrieved context
+    context_text = "\n".join(retrieved_docs)
+    prompt = f"""Use the following medical information to answer the question.
+
+Context:
+{context_text}
+
+Question: {query}
+
+Answer:"""
+
+    # 3. Get LLM to generate an answer using the context
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a helpful medical assistant. Answer based on the provided context.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=200,
+        temperature=0.2,
+    )
+
+    answer = completion.choices[0].message.content
+    return answer.strip()
+
+
 def run():
     while True:
         print("\n=== Vector Database Pipeline ===")
         for key, value in MENU_OPTIONS.items():
             print(f"{key}. {value}")
 
-        choice = input("\nPlease select an option (1, 1f, 2-4): ").strip()
+        choice = input("\nPlease select an option (1, 1f, 2-5): ").strip()
 
         if choice == "1":
             load_and_store_embeddings(force_overwrite=False)
@@ -134,10 +182,12 @@ def run():
         elif choice == "3":
             query_database()
         elif choice == "4":
+            get_rag_answer()
+        elif choice == "5":
             print("Goodbye!")
             break
         else:
-            print("Invalid choice. Please select 1, 1f, 2-4.")
+            print("Invalid choice. Please select 1, 1f, 2-5.")
 
 
 def load_and_store_embeddings(force_overwrite=False):
@@ -225,6 +275,45 @@ def query_database():
 
     except Exception as e:
         print(f"Error querying database: {e}")
+        print("Make sure you've run option 1 first to create the embeddings.")
+
+
+def get_rag_answer():
+    print("\n=== Get RAG Answer ===")
+    try:
+        # Initialize Chroma client
+        chroma_client = init_chroma(persist_dir=PERSIST_DIR)
+        collection = chroma_client.get_collection(COLLECTION_NAME)
+
+        # Get user input
+        q = input("Please enter your question: ").strip()
+
+        if not q:
+            print("No question entered. Returning to main menu.")
+            return
+
+        print(f"\nGenerating AI answer for: '{q}'")
+        print("Retrieving relevant documents and generating response...")
+
+        # Get RAG answer
+        answer = rag_answer(collection, q, top_k=2)
+
+        print("\n🤖 AI Answer:")
+        print("=" * 50)
+        print(answer)
+        print("=" * 50)
+
+        # Also show the retrieved documents for transparency
+        print("\n📚 Retrieved Documents:")
+        results = query_collection(collection, q, top_k=2)
+        for i, (doc, distance) in enumerate(
+            zip(results["documents"][0], results["distances"][0])
+        ):
+            print(f"\n{i+1}. (Similarity: {1-distance:.3f})")
+            print(f"   {doc[:150]}...")
+
+    except Exception as e:
+        print(f"Error generating RAG answer: {e}")
         print("Make sure you've run option 1 first to create the embeddings.")
 
 

@@ -83,7 +83,6 @@ llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", message=".*migration guide.*")
     warnings.filterwarnings("ignore", message=".*ConversationBufferMemory.*")
-    from langchain.memory import ConversationBufferMemory
 
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 

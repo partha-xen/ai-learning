@@ -7,6 +7,7 @@ repos:
     rev: v0.6.9
     hooks:
       - id: ruff
+        exclude: '.*\.ipynb'
         args: [--fix]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
